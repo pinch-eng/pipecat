@@ -253,4 +253,3 @@ class PinchApi:
         """
         params = {"session_id": session_id}
         await self._request("/session/end", params, expect_data=False)
-

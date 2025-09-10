@@ -37,12 +37,12 @@ from pipecat.frames.frames import (
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessorSetup
 from pipecat.services.ai_service import AIService
-from pipecat.services.pinch.api import (
+from pipecat.transports.pinch.api import (
     PinchSessionRequest,
     PinchConnectionError,
     PinchConfigurationError,
 )
-from pipecat.services.pinch.client import PINCH_OUTPUT_SAMPLE_RATE, PinchCallbacks, PinchClient
+from pipecat.transports.pinch.client import PINCH_OUTPUT_SAMPLE_RATE, PinchCallbacks, PinchClient
 from pipecat.transports.base_transport import TransportParams
 from pipecat.utils.time import time_now_iso8601
 

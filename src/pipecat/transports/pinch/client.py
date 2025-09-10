@@ -13,7 +13,7 @@ audio streaming capabilities through LiveKit and the Pinch API.
 
 import asyncio
 import json
-from typing import Awaitable, Callable, Optional, Literal
+from typing import Awaitable, Callable, Optional
 import base64
 import aiohttp
 from loguru import logger
@@ -23,9 +23,8 @@ from pipecat.frames.frames import (
     StartFrame
 )
 from pipecat.processors.frame_processor import FrameProcessorSetup
-from pipecat.services.pinch.api import (
+from pipecat.transports.pinch.api import (
     PinchApi,
-    PinchApiError,
     PinchSession,
     PinchSessionRequest,
     PinchConnectionError,
@@ -447,4 +446,3 @@ class PinchClient:
                 asyncio.create_task(callback(*args))
             except Exception as e:
                 logger.error(f"Error calling event callback: {e}")
-
