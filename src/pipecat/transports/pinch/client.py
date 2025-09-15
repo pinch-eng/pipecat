@@ -115,6 +115,9 @@ class PinchClient:
         self._session_active = False
         # Audio frame counter for limiting log spam
         self._audio_frame_counter = 0
+        # Audio source and track for LiveKit audio streaming
+        self._audio_source: Optional[rtc.AudioSource] = None
+        self._audio_track: Optional[rtc.LocalAudioTrack] = None
 
     async def _initialize(self):
         self._pinch_session = await self._api.new_session(self._session_request)
@@ -169,6 +172,7 @@ class PinchClient:
             frame: Initial configuration frame containing audio parameters
         """
         if self._livekit_room:
+            logger.info("Pinch client already connected")
             return
 
         logger.debug("Starting Pinch client")
@@ -253,6 +257,18 @@ class PinchClient:
                         dynacast=True,
                     )
                 )
+                
+                # Set up audio source and track for sending user audio to Pinch
+                self._audio_source = rtc.AudioSource(
+                    PINCH_INPUT_SAMPLE_RATE, 1  # 16kHz mono for Pinch input
+                )
+                self._audio_track = rtc.LocalAudioTrack.create_audio_track(
+                    "pinch-user-audio", self._audio_source
+                )
+                options = rtc.TrackPublishOptions()
+                options.source = rtc.TrackSource.SOURCE_MICROPHONE
+                await self._livekit_room.local_participant.publish_track(self._audio_track, options)
+                
                 logger.info("Connected to Pinch audio streaming service")
                 self._connected = True
             except Exception as e:
@@ -315,8 +331,40 @@ class PinchClient:
         """
         return self._in_sample_rate
 
+    async def send_event_start_talk(self):
+        if self._livekit_room is None:
+            logger.error("Pinch client is not connected")
+            return
+
+        payload = {
+            'type': 'push_to_talk_start',
+            'participant': {
+                'identity': self._livekit_room.local_participant.identity,
+                'name': self._livekit_room.local_participant.name
+            }
+        }
+        message = json.dumps(payload).encode('utf-8')
+        await self._livekit_room.local_participant.publish_data(message, topic='push_to_talk_events')
+        logger.debug("Event: push_to_talk_start ...")
+
+    async def send_event_stop_talking(self):
+        if self._livekit_room is None:
+            logger.error("Pinch client is not connected")
+            return
+
+        payload = {
+            'type': 'push_to_talk_end',
+            'participant': {
+                'identity': self._livekit_room.local_participant.identity,
+                'name': self._livekit_room.local_participant.name
+            }
+        }
+        message = json.dumps(payload).encode('utf-8')
+        await self._livekit_room.local_participant.publish_data(message, topic='push_to_talk_events')
+        logger.debug("Event: push_to_talk_end ...")
+
     async def send_audio(self, audio: bytes, sample_rate: int) -> None:
-        """Send audio data to Pinch for translation via DataChannel as base64.
+        """Send audio data to Pinch for translation via LiveKit audio track.
 
         Args:
             audio: Raw PCM audio bytes (assumed 16-bit signed integer format)
@@ -338,7 +386,6 @@ class PinchClient:
             if not audio:
                 return  # Skip empty audio frames
 
-
             # Resample audio to 16kHz for Pinch if needed
             if sample_rate != PINCH_INPUT_SAMPLE_RATE:
                 if self._audio_frame_counter % 100 == 0:
@@ -349,38 +396,39 @@ class PinchClient:
             else:
                 resampled_audio = audio
 
-            # Send via DataChannel as base64 encoded audio
-            if self._livekit_room:
+            # Send via LiveKit audio track instead of DataChannel
+            if self._audio_source:
                 try:
-                    # Encode audio as base64
-                    audio_base64 = base64.b64encode(resampled_audio).decode('utf-8')
+                    # Convert to LiveKit audio frame
+                    bytes_per_sample = 2  # 16-bit audio
+                    total_samples = len(resampled_audio) // bytes_per_sample
+                    samples_per_channel = total_samples // 1  # Mono
 
-                    # Create data message with audio
-                    data_message = {
-                        "type": "audio",
-                        "audio": audio_base64
-                    }
-
-                    # Send as JSON over DataChannel (unreliable for real-time audio)
-                    await self._livekit_room.local_participant.publish_data(
-                        json.dumps(data_message).encode('utf-8'),
-                        reliable=False  # Use unreliable delivery for real-time audio
+                    audio_frame = rtc.AudioFrame(
+                        data=resampled_audio,
+                        sample_rate=PINCH_INPUT_SAMPLE_RATE,
+                        num_channels=1,
+                        samples_per_channel=samples_per_channel,
                     )
 
-                    # Only log DataChannel sends every 100 frames to reduce spam
+                    # Publish audio frame via LiveKit audio track
+                    await self._audio_source.capture_frame(audio_frame)
+
+                    # Only log audio sends every 100 frames to reduce spam
                     if self._audio_frame_counter % 100 == 0:
-                        logger.debug(f"Sent audio via DataChannel (frame #{self._audio_frame_counter})")
+                        logger.debug(f"Sent audio via LiveKit audio track (frame #{self._audio_frame_counter})")
 
                 except Exception as e:
-                    # Only log DataChannel errors every 100 frames to reduce spam
+                    # Only log audio errors every 100 frames to reduce spam
                     if self._audio_frame_counter % 100 == 0:
-                        logger.warning(f"Failed to send audio via DataChannel: {e}")
-                    # Re-raise to let caller handle the error
+                        logger.warning(f"Failed to send audio: {e}")
                     raise
+            else:
+                logger.error("Audio source not available, cannot send audio")
 
         except Exception as e:
             logger.error(f"Error sending audio to Pinch: {e}")
-            raise  # Re-raise to let caller handle the error
+            raise
 
 
     # Audio processing to receive translated audio
@@ -419,6 +467,8 @@ class PinchClient:
                 await self._livekit_room.disconnect()
                 self._livekit_room = None
                 self._connected = False
+                self._audio_source = None
+                self._audio_track = None
         except Exception as e:
             logger.error(f"Error disconnecting from audio stream: {e}")
 

@@ -215,7 +215,7 @@ class PinchApi:
             params["enableAudioOutput"] = False
             
         if request_data.enable_video_output:
-            params["enableVideoOutput"] = True
+            params["enableVideoOutput"] = False
         
         session_info = await self._request("/session", params)
 
@@ -228,9 +228,8 @@ class PinchApi:
             "room_name": session_info.get("room_name"),
             "livekit_url": session_info.get("url"),
             "access_token": session_info.get("token"),
-            "websocket_url": None,  # Not provided by this API
+            "websocket_url": None,
         }
-        
         # Validate required fields
         if not session_data.get("room_name"):
             raise PinchApiError("Missing room_name in API response", 500, str(session_info))

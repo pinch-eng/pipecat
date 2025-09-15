@@ -56,12 +56,12 @@ class PinchAudioService(AIService):
 
     The service supports:
 
-    - Real-time audio translation via dual-path sending (WebRTC + DataChannel)
+    - Real-time audio translation via LiveKit audio tracks
     - Voice activity detection for natural interactions
     - Transcript processing for both original and translated text
     - Audio resampling for optimal quality
     - Automatic session management
-    - Base64 encoded audio streaming over LiveKit DataChannel for enhanced reliability
+    - Direct audio streaming over LiveKit for enhanced reliability
 
     Args:
         api_token (str): Pinch API token for authentication
@@ -275,7 +275,7 @@ class PinchAudioService(AIService):
         """Process incoming frames and coordinate translation behavior.
 
         Handles different types of frames to manage translation interactions:
-        - InputAudioRawFrame: Queues audio for translation via DataChannel
+        - InputAudioRawFrame: Queues audio for translation via LiveKit audio tracks
         - UserStartedSpeakingFrame: Signals start of user speech
         - UserStoppedSpeakingFrame: Signals end of user speech
         - Other frames: Forwards them through the pipeline
@@ -301,8 +301,12 @@ class PinchAudioService(AIService):
             await self.push_frame(frame, direction)
 
         elif isinstance(frame, UserStartedSpeakingFrame):
+            if self._client:
+                await self._client.send_event_start_talk()
             await self.push_frame(frame, direction)
         elif isinstance(frame, UserStoppedSpeakingFrame):
+            if self._client:
+                await self._client.send_event_stop_talking()
             await self.push_frame(frame, direction)
         elif isinstance(frame, OutputTransportReadyFrame):
             await self.push_frame(frame, direction)
