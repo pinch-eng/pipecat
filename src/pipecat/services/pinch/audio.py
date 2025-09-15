@@ -301,12 +301,8 @@ class PinchAudioService(AIService):
             await self.push_frame(frame, direction)
 
         elif isinstance(frame, UserStartedSpeakingFrame):
-            if self._client:
-                await self._client.send_event_start_talk()
             await self.push_frame(frame, direction)
         elif isinstance(frame, UserStoppedSpeakingFrame):
-            if self._client:
-                await self._client.send_event_stop_talking()
             await self.push_frame(frame, direction)
         elif isinstance(frame, OutputTransportReadyFrame):
             await self.push_frame(frame, direction)

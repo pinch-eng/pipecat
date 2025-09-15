@@ -331,38 +331,6 @@ class PinchClient:
         """
         return self._in_sample_rate
 
-    async def send_event_start_talk(self):
-        if self._livekit_room is None:
-            logger.error("Pinch client is not connected")
-            return
-
-        payload = {
-            'type': 'push_to_talk_start',
-            'participant': {
-                'identity': self._livekit_room.local_participant.identity,
-                'name': self._livekit_room.local_participant.name
-            }
-        }
-        message = json.dumps(payload).encode('utf-8')
-        await self._livekit_room.local_participant.publish_data(message, topic='push_to_talk_events')
-        logger.debug("Event: push_to_talk_start ...")
-
-    async def send_event_stop_talking(self):
-        if self._livekit_room is None:
-            logger.error("Pinch client is not connected")
-            return
-
-        payload = {
-            'type': 'push_to_talk_end',
-            'participant': {
-                'identity': self._livekit_room.local_participant.identity,
-                'name': self._livekit_room.local_participant.name
-            }
-        }
-        message = json.dumps(payload).encode('utf-8')
-        await self._livekit_room.local_participant.publish_data(message, topic='push_to_talk_events')
-        logger.debug("Event: push_to_talk_end ...")
-
     async def send_audio(self, audio: bytes, sample_rate: int) -> None:
         """Send audio data to Pinch for translation via LiveKit audio track.
 
