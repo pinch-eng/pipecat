@@ -122,7 +122,7 @@ class PinchApi:
     Note: In production you must set PINCH_API_BASE_URL environment variable.
     """
 
-    DEFAULT_BASE_URL = "http://localhost:3000/api/beta1"
+    DEFAULT_BASE_URL = "https://api.startpinch.com/api/beta1"
 
     def __init__(self, api_token: str, session: aiohttp.ClientSession) -> None:
         """Initialize the Pinch API.
@@ -136,23 +136,7 @@ class PinchApi:
         """
         self.api_token = api_token
         self.session = session
-
-        # Require PINCH_API_BASE_URL in production, fallback to localhost for dev
-        self.base_url = os.getenv("PINCH_API_BASE_URL")
-        if not self.base_url:
-            # Check if we're likely in production by looking for common indicators
-            if os.getenv("PRODUCTION") or os.getenv("ENV") == "production":
-                raise ValueError(
-                    "PINCH_API_BASE_URL environment variable must be set in production. "
-                    "Set it to your Pinch API endpoint (e.g., https://api.pinch.example.com/api/beta1)"
-                )
-            # Development fallback
-            self.base_url = self.DEFAULT_BASE_URL
-            logger.warning(
-                "PINCH_API_BASE_URL not set, using development default: %s. "
-                "Set PINCH_API_BASE_URL for production use.",
-                self.base_url
-            )
+        self.base_url = os.getenv("PINCH_API_BASE_URL", self.DEFAULT_BASE_URL)
 
     async def _request(self, path: str, params: Dict[str, Any], expect_data: bool = True) -> Any:
         """Make a POST request to the Pinch API.
